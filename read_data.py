@@ -22,11 +22,21 @@ hdf5_file1.create_dataset('x', (1,), dtype=np.float32)
 hdf5_file1.create_dataset('y', (1,), dtype=np.float32)
 hdf5_file1.create_dataset('z', (1,), dtype=np.float32)
 hdf5_file1.create_dataset('data', (len(addrs),512,512,3), dtype=np.uint16)
+hdf5_file1.create_dataset('mask', (len(addrs),512,512), dtype=np.uint8)
 
 for i in range(len(addrs)):
     dcmPath = os.path.join(train_folder1, addrs[i])
     dicom_dataset = pydicom.dcmread(dcmPath)
     hdf5_file1['data'][i,...] = dicom_dataset.pixel_array
+    
+    LV = cv2.inRange(img, (235, 0, 0), (255, 0, 0))
+    LV = imfill(LV)
+    hdf5_file1['mask'][i,...] = LV
+    #epi = cv2.inRange(img, (0, 230, 0), (0, 255, 0))
+    #RV = cv2.inRange(img, (230, 230, 0), (255, 255, 0))
+    #RV = imfill(RV)
+    #MYO = (imfill(epi+RV)-RV)-LV
+    
     if i == 0:
         hdf5_file1['rows'][i,...] = dicom_dataset.Rows
         hdf5_file1['cols'][i,...] = dicom_dataset.Columns
