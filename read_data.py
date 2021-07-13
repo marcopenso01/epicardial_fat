@@ -1,3 +1,11 @@
+def imfill(img):
+    img[img>0]=255
+    im_floodfill = img.copy()
+    h, w = im_floodfill.shape[:2]
+    mask = np.zeros((h+2, w+2), np.uint8)
+    cv2.floodFill(im_floodfill, mask, (0,0), 255);
+    return img | cv2.bitwise_not(im_floodfill)
+
 train_folder1 = r'G:\11\BURIC_MARIO_060Y(1)\series11002-unknown'
 
 path = r'G:\11'
