@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import Model
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 def selective_kernel(input1, input2, channel, ratio=8):
     '''
@@ -121,7 +122,51 @@ def Unet(input_size1 = (192,192,1), input_size2 = (192, 192, 3, 1), num_class=2,
   model=Model(inputs=[input_model1, input_model2],outputs=conv_out)
   return model
 
+data_root = 'xxxxx'
+model_name = 'xxx'
 
 model = Unet()
 model.summary(line_length=140)
 plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
+
+# Load data train
+data = h5py.File(os.path.join(data_root, 'train.hdf5'), 'r')
+
+train_img = data['img_raw'][()]
+train_label = data['mask'][()]
+train_up = data['img_up'][()]
+train_down = data['img_down'][()]
+train_left = data['img_left'][()]
+train_right = data['img_right'][()]
+data.close()
+
+data = h5py.File(os.path.join(data_root, 'val.hdf5'), 'r')
+
+val_img = data['img_raw'][()]
+val_label = data['mask'][()]
+val_up = data['img_up'][()]
+val_down = data['img_down'][()]
+val_left = data['img_left'][()]
+val_right = data['img_right'][()]
+data.close()
+
+logging.info('Data summary:')
+logging.info(' - Training Images:')
+logging.info(train_img.shape)
+logging.info(train_img.dtype)
+logging.info(' - Training Labels:')
+logging.info(train_label.shape)
+logging.info(train_label.dtype)
+logging.info(' - validation Images:')
+logging.info(val_img.shape)
+logging.info(val_img.dtype)
+logging.info(' - Validation Labels:')
+logging.info(val_label.shape)
+logging.info(val_label.dtype)
+
+# Define callbacks
+checkpoint = ModelCheckpoint(filepath=model_name + '_model_weight.h5',
+                             monitor='val_dice_coef',
+                             save_best_only=True,
+                             save_weights_only=True)
+
