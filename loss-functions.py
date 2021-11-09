@@ -95,6 +95,14 @@ def dice_coefficient(delta = 0.5, smooth = 0.000001):
 
     return loss_function
 
+# True positive
+
+# False negative
+
+# False positive
+
+#True negative
+
 ################################
 #          Combo loss          #
 ################################
