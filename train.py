@@ -8,7 +8,9 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorlfow.keras.preprocessing.image import ImageDataGenerator
 import loss-functions as ls
+
 
 def selective_kernel(input1, input2, channel, ratio=8):
     '''
@@ -184,9 +186,17 @@ checkpoint = ModelCheckpoint(filepath=model_name + '_model_weight.h5',
                              save_best_only=True,
                              save_weights_only=True)
 
-history = model.fit([train_img, train_up, train_down], train_label,
-                     batch_size = 2,
-                     epochs = 200,
-                     validation_data=([val_img, val_up, val_down], val_label)
-                     callbacks=checkpoint,
-                     shuffle=True)
+datagen = ImageDataGenerator(
+    rotation_range=60,
+    width_shift_range=0.05,
+    height_shift_range=0.05,
+    horizontal_flip=True,
+    vertical_flip=True)
+
+history = model.fit(datagen.flow([train_img, train_up, train_down], train_label, 
+                    batch_size = 2, subset = 'training'),
+                    validation_data=datagen.flow([val_img, val_up, val_down], val_label,
+                    batch_size = 2, subset = 'validation'),
+                    epochs = 200,
+                    callbacks=[checkpoint],
+                    shuffle=True)
