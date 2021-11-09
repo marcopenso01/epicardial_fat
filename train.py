@@ -8,6 +8,7 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import ModelCheckpoint
+import loss-functions as ls
 
 def selective_kernel(input1, input2, channel, ratio=8):
     '''
@@ -48,10 +49,10 @@ def selective_kernel(input1, input2, channel, ratio=8):
     return f[0:4]
 
 
-def Unet(input_size1 = (192,192,1), input_size2 = (192, 192, 3, 1), num_class=2, n_filt=32):
-
+def Unet(input_size1 = (160,160,1), input_size2 = (160, 160, 1), input_size3= (160,160,1), num_class=2, n_filt=32):
+  
   input_model1 = Input(input_size1)
-  input_model2 = Input(input_size2)
+  input_model2 = Input(np.stack((input_size2, input_size1, input_size3), axis=-1))
 
   #layer1 2D
   x1 = ReLU()(BatchNormalization()(Conv2D(n_filt, 3, padding = 'same', kernel_initializer = 'he_normal')(input_model1)))
@@ -122,6 +123,9 @@ def Unet(input_size1 = (192,192,1), input_size2 = (192, 192, 3, 1), num_class=2,
   model=Model(inputs=[input_model1, input_model2],outputs=conv_out)
   return model
 
+"""
+GENERATE THE DATA
+"""
 data_root = 'xxxxx'
 model_name = 'xxx'
 
@@ -129,7 +133,9 @@ model = Unet()
 model.summary(line_length=140)
 plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
 
-# Load data train
+"""
+Load data train
+"""
 data = h5py.File(os.path.join(data_root, 'train.hdf5'), 'r')
 
 train_img = data['img_raw'][()]
@@ -164,9 +170,23 @@ logging.info(' - Validation Labels:')
 logging.info(val_label.shape)
 logging.info(val_label.dtype)
 
+initial_learning_rate = 1e-4
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate,
+    decay_steps=10000,
+    decay_rate=0.9)
+opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+model.compile(optimizer=opt, loss=ls.unified_focal_loss(weight=0.5, delta=0.6, gamma=0.2), metrics = [ls.dice_coefficient()])
+
 # Define callbacks
 checkpoint = ModelCheckpoint(filepath=model_name + '_model_weight.h5',
                              monitor='val_dice_coef',
                              save_best_only=True,
                              save_weights_only=True)
 
+history = model.fit([train_img, train_up, train_down], train_label,
+                     batch_size = 2,
+                     epochs = 200,
+                     validation_data=([val_img, val_up, val_down], val_label)
+                     callbacks=checkpoint,
+                     shuffle=True)
