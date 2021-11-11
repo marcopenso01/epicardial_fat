@@ -3,6 +3,7 @@ import os
 import skimage.io as io
 import skimage.transform as trans
 import logging
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
@@ -146,22 +147,22 @@ Load data train
 """
 data = h5py.File(os.path.join(data_root, 'train.hdf5'), 'r')
 
-train_img = data['img_raw'][()]
+train_img = data['img_raw'][()][..., np.newaxis]
 train_label = data['mask'][()]
-train_up = data['img_up'][()]
-train_down = data['img_down'][()]
-train_left = data['img_left'][()]
-train_right = data['img_right'][()]
+train_up = data['img_up'][()][..., np.newaxis]
+train_down = data['img_down'][()][..., np.newaxis]
+train_left = data['img_left'][()][..., np.newaxis]
+train_right = data['img_right'][()][..., np.newaxis]
 data.close()
 
 data = h5py.File(os.path.join(data_root, 'val.hdf5'), 'r')
 
-val_img = data['img_raw'][()]
-val_label = data['mask'][()]
-val_up = data['img_up'][()]
-val_down = data['img_down'][()]
-val_left = data['img_left'][()]
-val_right = data['img_right'][()]
+val_img = data['img_raw'][()][..., np.newaxis]
+val_label = data['mask'][()][..., np.newaxis]
+val_up = data['img_up'][()][..., np.newaxis]
+val_down = data['img_down'][()][..., np.newaxis]
+val_left = data['img_left'][()][..., np.newaxis]
+val_right = data['img_right'][()][..., np.newaxis]
 data.close()
 
 logging.info('Data summary:')
@@ -218,3 +219,13 @@ history = model.fit(datagen.flow([train_img, train_up, train_down], train_label,
                     shuffle=True)
 
 print('Model correctly trained and saved')
+
+fig, ax = plt.subplots(1, 2, figsize=(20, 3))
+ax = ax.ravel()
+for i, metric in enumerate(["dice", "loss"]):
+    ax[i].plot(history.history[metric])
+    ax[i].plot(history.history["val_" + metric])
+    ax[i].set_title("Model {}".format(metric))
+    ax[i].set_xlabel("epochs")
+    ax[i].set_ylabel(metric)
+    ax[i].legend(["train", "val"])
