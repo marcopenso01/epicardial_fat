@@ -237,7 +237,6 @@ def hybrid_focal_loss(weight=None, alpha=None, beta=None, gamma=0.75, gamma_f=2.
 #     Asymmetric Focal loss    #
 ################################
 def asymmetric_focal_loss(delta=0.25, gamma=2.):
-    def loss_function(y_true, y_pred):
     """For Imbalanced datasets
     Parameters
     ----------
@@ -246,6 +245,7 @@ def asymmetric_focal_loss(delta=0.25, gamma=2.):
     gamma : float, optional
         Focal Tversky loss' focal parameter controls degree of down-weighting of easy examples, by default 2.0
     """
+    def loss_function(y_true, y_pred):
         axis = identify_axis(y_true.get_shape())  
 
         epsilon = K.epsilon()
