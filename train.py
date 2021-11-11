@@ -177,13 +177,15 @@ num_img = len(train_img)
 initial_learning_rate = 1e-3
 
 class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-  def __init__(self, initial_learning_rate):
+  def __init__(self, initial_learning_rate, decay):
     self.initial_learning_rate = initial_learning_rate
-
+    self.decay = decay
   def __call__(self, step):
-     return self.initial_learning_rate / (step + 1)
-
-opt = tf.keras.optimizers.Adam(learning_rate=MyLRSchedule(initial_learning_rate))
+    if (step % decay == 0):
+        self.initial_learning_rate = self.initial_learning_rate * 0.97
+    return self.initial_learning_rate
+    
+opt = tf.keras.optimizers.Adam(learning_rate=MyLRSchedule(initial_learning_rate, num_img//batch_size))
 model.compile(optimizer=opt, loss=ls.unified_focal_loss(weight=0.5, delta=0.6, gamma=0.2), metrics = [ls.dice_coefficient()])
 
 # Define callbacks
