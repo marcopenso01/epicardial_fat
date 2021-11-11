@@ -2,7 +2,7 @@ import numpy as np
 import os
 import skimage.io as io
 import skimage.transform as trans
-import numpy as np
+import logging
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
@@ -11,6 +11,9 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import loss-functions as ls
 
+logging.basicConfig(
+    level=logging.INFO # allow DEBUG level messages to pass through the logger
+    )
 
 def selective_kernel(input1, input2, channel, ratio=8):
     '''
@@ -54,14 +57,17 @@ def selective_kernel(input1, input2, channel, ratio=8):
 def Unet(input_size1 = (160,160,1), input_size2 = (160, 160, 1), input_size3= (160,160,1), num_class=2, n_filt=32):
   
   input_model1 = Input(input_size1)
-  input_model2 = Input(np.stack((input_size2, input_size1, input_size3), axis=-1))
-
+  input_model2 = Input(input_size2)
+  input_model3 = Input(input_size3)
+    
   #layer1 2D
   x1 = ReLU()(BatchNormalization()(Conv2D(n_filt, 3, padding = 'same', kernel_initializer = 'he_normal')(input_model1)))
   conv1 = ReLU()(BatchNormalization()(Conv2D(n_filt, 3, padding = 'same', kernel_initializer = 'he_normal')(x1)))
   pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
   #layer1 3D
-  x1_2 = ReLU()(BatchNormalization()(Conv3D(n_filt, 3, padding = 'same', kernel_initializer = 'he_normal')(input_model2)))
+  input_model3d = Concatenate(axis=-1)([input_model2, input_model1, input_model3])
+  input_model3d = tf.expand_dims(input_model3d, -1)
+  x1_2 = ReLU()(BatchNormalization()(Conv3D(n_filt, 3, padding = 'same', kernel_initializer = 'he_normal')(input_model3d)))
   conv1_2 = ReLU()(BatchNormalization()(Conv3D(n_filt, 3, padding = 'same', kernel_initializer = 'he_normal')(x1_2)))
   pool1_2 = MaxPooling3D(pool_size=(2,2,1))(conv1_2)
   #layer2 2D
@@ -122,7 +128,7 @@ def Unet(input_size1 = (160,160,1), input_size2 = (160, 160, 1), input_size3= (1
   else:
       conv_out=Conv2D(num_class-1, 1, activation = 'sigmoid', padding = 'same', kernel_initializer = 'he_normal')(conv9)
   
-  model=Model(inputs=[input_model1, input_model2],outputs=conv_out)
+  model=Model(inputs=[input_model1, input_model2, input_model3],outputs=conv_out)
   return model
 
 """
