@@ -8,7 +8,7 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorlfow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import loss-functions as ls
 
 
@@ -172,12 +172,18 @@ logging.info(' - Validation Labels:')
 logging.info(val_label.shape)
 logging.info(val_label.dtype)
 
-initial_learning_rate = 1e-4
-lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate,
-    decay_steps=10000,
-    decay_rate=0.9)
-opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+batch_size = 2
+num_img = len(train_img)
+initial_learning_rate = 1e-3
+
+class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+  def __init__(self, initial_learning_rate):
+    self.initial_learning_rate = initial_learning_rate
+
+  def __call__(self, step):
+     return self.initial_learning_rate / (step + 1)
+
+opt = tf.keras.optimizers.Adam(learning_rate=MyLRSchedule(initial_learning_rate))
 model.compile(optimizer=opt, loss=ls.unified_focal_loss(weight=0.5, delta=0.6, gamma=0.2), metrics = [ls.dice_coefficient()])
 
 # Define callbacks
@@ -191,12 +197,16 @@ datagen = ImageDataGenerator(
     width_shift_range=0.05,
     height_shift_range=0.05,
     horizontal_flip=True,
-    vertical_flip=True)
+    vertical_flip=True,
+    interpolation=')
 
 history = model.fit(datagen.flow([train_img, train_up, train_down], train_label, 
-                    batch_size = 2, subset = 'training'),
+                    batch_size = batch_size, subset = 'training'),
                     validation_data=datagen.flow([val_img, val_up, val_down], val_label,
-                    batch_size = 2, subset = 'validation'),
+                    batch_size = batch_size, subset = 'validation'),
                     epochs = 200,
+                    steps_per_epoch = num_img//batch_size
                     callbacks=[checkpoint],
                     shuffle=True)
+
+print('Model correctly trained and saved')
