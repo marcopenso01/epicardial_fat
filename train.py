@@ -4,6 +4,7 @@ import skimage.io as io
 import skimage.transform as trans
 import logging
 import matplotlib.pyplot as plt
+import h5py
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from tensorflow.keras.utils import plot_model
