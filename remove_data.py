@@ -43,45 +43,28 @@ def crop_or_pad_slice_to_size(slice, nx, ny):
         return slice_cropped
     
     
-path = r'F:/ARTEFACTS/val'
+path = ''
 
-for fold in os.listdir(path):
-    
-    path2 = os.path.join(path, fold)
-    for paz in os.listdir(path2):
-        print(paz)
-        LIST = []
-        fold_paz = os.path.join(path2, paz)
-        
-        path_seg = os.path.join(fold_paz, 'SEG')
-        path_seg = os.path.join(path_seg, os.listdir(path_seg)[0])
-        path_raw = os.path.join(fold_paz, 'RAW')
-        path_raw = os.path.join(path_raw, os.listdir(path_raw)[0])
-        path_cir = os.path.join(fold_paz, 'CIRCLE')
-        if os.path.exists(path_cir):
-            path_cir = os.path.join(path_cir, os.listdir(path_cir)[0])
-            cir = True
-        else:
-            cir = False
-    
-        for i in range(len(os.listdir(path_seg))):
-            dcmPath = os.path.join(path_seg, os.listdir(path_seg)[i])
-            data_row_img = pydicom.dcmread(dcmPath)
-            img = data_row_img.pixel_array
-            img = crop_or_pad_slice_to_size(img, 390, 390)
-            temp_img = img.copy()
-            for r in range(0, img.shape[0]):
-                for c in range(0, img.shape[1]):
-                    if img[r,c,0] == img[r,c,1] == img[r,c,2]:
-                        temp_img[r,c,:]=0
-    
-            green_pixels = cv2.inRange(temp_img, (0, 110, 0), (125, 255, 125))
-    
-            if len(np.argwhere(green_pixels)) < 6:
-                LIST.append(os.path.join(path_seg, os.listdir(path_seg)[i]))
-                LIST.append(os.path.join(path_raw, os.listdir(path_raw)[i]))
-                if cir:
-                    LIST.append(os.path.join(path_cir, os.listdir(path_cir)[i]))
-        
-        for i in range(len(LIST)):
-            os.remove(LIST[i])
+
+for paz in os.listdir(path):
+    print(paz)
+    LIST = []
+    fold_paz = os.path.join(path, paz)
+
+    path_seg = os.path.join(fold_paz, 'seg')
+    path_seg = os.path.join(path_seg, os.listdir(path_seg)[0])
+    path_raw = os.path.join(fold_paz, 'raw')
+    path_raw = os.path.join(path_raw, os.listdir(path_raw)[0])
+
+    for i in range(len(os.listdir(path_seg))):
+        dcmPath = os.path.join(path_seg, os.listdir(path_seg)[i])
+        data_row_img = pydicom.dcmread(dcmPath)
+        img = data_row_img.pixel_array
+        img = crop_or_pad_slice_to_size(img, 340, 340)
+        temp_img = img.copy()
+        if len(np.argwhere(cv2.inRange(temp_img, (250,250,0), (255,255,0)))) < 10:
+            LIST.append(os.path.join(path_seg, os.listdir(path_seg)[i]))
+            LIST.append(os.path.join(path_raw, os.listdir(path_raw)[i]))
+
+    for i in range(len(LIST)):
+        os.remove(LIST[i])
