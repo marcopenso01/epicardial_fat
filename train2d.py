@@ -430,7 +430,7 @@ for epoch in range(epochs):
     if train_history == {}:
         for m_i in range(len(model.metrics_names)):
             train_history[model.metrics_names[m_i]] = []
-    for key in history:
+    for key in train_history:
         train_history[key].append(temp_hist[key])
 
     #save learning rate history
@@ -459,7 +459,8 @@ for epoch in range(epochs):
         no_improvement_counter = 0
         logging.info(str('val_'+model.metrics_names[1]+' improved from %.3f to %.3f, saving model to weights-improvement') % (best_val_dice, val_hist[1]))
         best_val = val_hist[1]
-        model.save(os.path.join(log_dir, 'model_weight.h5'))
+        #model.save(os.path.join(log_dir, 'model_weights.h5'))
+        model.save_weights(os.path.join(log_dir, 'model_weights.h5'))
     else:
         no_improvement_counter += 1
         logging.info('val_dice_coef did not improve for %d epochs' % no_improvement_counter)
