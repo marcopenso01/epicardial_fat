@@ -53,7 +53,8 @@ def transform_matrix_offset_center(matrix, x, y):
     return transform_matrix
     
     
-def apply_affine_transform(img, lbl, rows, cols, theta=0, tx=0, ty=0,
+def apply_affine_transform(img1, img2, img3, lbl, rows, cols, 
+                           theta=0, tx=0, ty=0,
                            fill_mode='nearest', order=1):
     '''
     Applies an affine transformation specified by the parameters given.
@@ -93,13 +94,31 @@ def apply_affine_transform(img, lbl, rows, cols, theta=0, tx=0, ty=0,
         final_offset = transform_matrix[:2, 2]
         
         channel_images = [ndimage.interpolation.affine_transform(
-            img[:,:,channel],
+            img1[:,:,channel],
             final_affine_matrix,
             final_offset,
             order=order,
             mode=fill_mode,
-            cval=0.0) for channel in range(img.shape[-1])]
-        img = np.stack(channel_images, axis=2)
+            cval=0.0) for channel in range(img1.shape[-1])]
+        img1 = np.stack(channel_images, axis=2)
+
+        channel_images = [ndimage.interpolation.affine_transform(
+            img2[:,:,channel],
+            final_affine_matrix,
+            final_offset,
+            order=order,
+            mode=fill_mode,
+            cval=0.0) for channel in range(img2.shape[-1])]
+        img2 = np.stack(channel_images, axis=2)
+
+        channel_images = [ndimage.interpolation.affine_transform(
+            img3[:,:,channel],
+            final_affine_matrix,
+            final_offset,
+            order=order,
+            mode=fill_mode,
+            cval=0.0) for channel in range(img3.shape[-1])]
+        img3 = np.stack(channel_images, axis=2)
 
         channel_images = [ndimage.interpolation.affine_transform(
             lbl[:,:,channel],
@@ -110,10 +129,10 @@ def apply_affine_transform(img, lbl, rows, cols, theta=0, tx=0, ty=0,
             cval=0.0) for channel in range(lbl.shape[-1])]
         lbl = np.stack(channel_images, axis=2)
  
-    return img, lbl
+    return img1, img2, img3, lbl
 
 
-def augmentation_function(images, labels):
+def augmentation_function(image1, image2, image3, labels):
     '''
     Function for augmentation of minibatches.
     :param images: A numpy array of shape [minibatch, X, Y, nchannels]
@@ -121,18 +140,22 @@ def augmentation_function(images, labels):
     :return: A mini batch of the same size but with transformed images and masks. 
     '''
     
-    if images.ndim > 4:
+    if image1.ndim > 4:
         raise AssertionError('Augmentation will only work with 2D images')
 
-    new_images = []
+    new_images1 = []
+    new_images2 = []
+    new_images3 = []
     new_labels = []
-    num_images = images.shape[0]
-    rows = images.shape[1]
-    cols = images.shape[2]
+    num_images = image1.shape[0]
+    rows = image1.shape[1]
+    cols = image1.shape[2]
 
     for ii in range(num_images):
 
-        img = images[ii,...]
+        img1 = image1[ii,...]
+        img2 = image2[ii,...]
+        img3 = image3[ii,...]
         lbl = labels[ii,...]
 
         # ROTATE
@@ -169,29 +192,38 @@ def augmentation_function(images, labels):
         #RANDOM VERTICAL FLIP
         flip_vertical = (np.random.random() < 0.5)
         
-        img, lbl = apply_affine_transform(img, lbl, rows=rows, cols=cols,
-                                          theta=theta, tx=tx, ty=ty,
-                                          fill_mode='nearest',
-                                          order=1)
+        img1, img2, img3, lbl = apply_affine_transform(img1, img2, img3, lbl, 
+                                                       rows=rows, cols=cols,
+                                                       theta=theta, tx=tx, ty=ty,
+                                                       fill_mode='nearest',
+                                                       order=1)
         
         if flip_horizontal:
-            img = flip_axis(img, 1)
+            img1 = flip_axis(img1, 1)
+            img2 = flip_axis(img2, 1)
+            img3 = flip_axis(img3, 1)
             lbl = flip_axis(lbl, 1)
 
         if flip_vertical:
-            img = flip_axis(img, 0)
+            img1 = flip_axis(img1, 0)
+            img2 = flip_axis(img2, 0)
+            img3 = flip_axis(img3, 0)
             lbl = flip_axis(lbl, 0)
 
-        new_images.append(img)
+        new_images1.append(img1)
+        new_images2.append(img2)
+        new_images3.append(img3)
         new_labels.append(lbl)
     
-    sampled_image_batch = np.asarray(new_images)
+    sampled_image1_batch = np.asarray(new_images1)
+    sampled_image2_batch = np.asarray(new_images2)
+    sampled_image3_batch = np.asarray(new_images3)
     sampled_label_batch = np.asarray(new_labels)
 
-    return sampled_image_batch, sampled_label_batch
+    return sampled_image1_batch, sampled_image2_batch, sampled_image3_batch, sampled_label_batch
 
 
-def iterate_minibatches(images, labels, batch_size, augment_batch=False, expand_dims=True):
+def iterate_minibatches(image1, image2, image3, labels, batch_size, augment_batch=False, expand_dims=True):
     '''
     Function to create mini batches from the dataset of a certain batch size 
     :param images: input data shape (N, W, H)
@@ -201,29 +233,33 @@ def iterate_minibatches(images, labels, batch_size, augment_batch=False, expand_
     :param expand_dims: adding a dimension, Boolean (default: True)
     :return: mini batches
     '''
-    random_indices = np.arange(images.shape[0])
+    random_indices = np.arange(image1.shape[0])
     np.random.shuffle(random_indices)
-    n_images = images.shape[0]
+    n_images = image1.shape[0]
     for b_i in range(0,n_images,batch_size):
 
         if b_i + batch_size > n_images:
             continue
         
         batch_indices = np.sort(random_indices[b_i:b_i+batch_size])
-        X = images[batch_indices, ...]
+        X1 = image1[batch_indices, ...]   #array of shape [minibatch, X, Y]
+        X2 = image2[batch_indices, ...]
+        X3 = image3[batch_indices, ...]
         y = labels[batch_indices, ...]
 
         if expand_dims:        
-            X = X[...,np.newaxis]   #array of shape [minibatch, X, Y, nchannels]
+            X1 = X1[...,np.newaxis]   #array of shape [minibatch, X, Y, nchannels=1]
+            X2 = X2[...,np.newaxis]
+            X3 = X3[...,np.newaxis]
             y = y[...,np.newaxis]
 
         if augment_batch:
-            X, y = augmentation_function(X, y)
+            X1, X2, X3, y = augmentation_function(X1, X2, X3, y)
         
-        yield X, y
+        yield X1, X2, X3, y
 
 
-def do_eval(images, labels, batch_size, augment_batch=False, expand_dims=True):                           
+def do_eval(image1, image2, image3, labels, batch_size, augment_batch=False, expand_dims=True):                           
     '''
     Function for running the evaluations on the validation sets.  
     :param images: A numpy array containing the images
@@ -235,20 +271,22 @@ def do_eval(images, labels, batch_size, augment_batch=False, expand_dims=True):
     '''
     num_batches = 0
     history = []
-    for batch in iterate_minibatches(images, 
+    for batch in iterate_minibatches(image1,
+                                     image2,
+                                     image3, 
                                      labels,
-                                     batch_size,
-                                     augment_batch,
-                                     expand_dims):
-        x, y = batch
+                                     batch_size=batch_size,
+                                     augment_batch=augment_batch,
+                                     expand_dims=expand_dims):
+        x1, x2, x3, y = batch
         if y.shape[0] < batch_size:
             continue
         
-        val_hist = model.test_on_batch(x,y)
+        val_hist = model.test_on_batch((x1, x2, x3), y)
         if history == []:
             history.append(val_hist)
         else:
-            history[0] = [x + y for x, y in zip(history[0], val_hist)]
+            history[0] = [i + j for i, j in zip(history[0], val_hist)]
         num_batches += 1
 
     for i in range(len(history[0])):
@@ -262,22 +300,22 @@ Load data train
 logging.info('\nLoading data...')
 data = h5py.File('train.hdf5', 'r')
 
-train_img = data['img_raw'][()]
-train_label = data['mask'][()]
-train_up = data['img_up'][()]
-train_down = data['img_down'][()]
-train_left = data['img_left'][()]
-train_right = data['img_right'][()]
+train_img = data['img_raw'][()].astype('float32')
+train_label = data['mask'][()].astype('float32')
+train_up = data['img_up'][()].astype('float32')
+train_down = data['img_down'][()].astype('float32')
+train_left = data['img_left'][()].astype('float32')
+train_right = data['img_right'][()].astype('float32')
 data.close()
 
 data = h5py.File('val.hdf5', 'r')
 
-val_img = data['img_raw'][()]
-val_label = data['mask'][()]
-val_up = data['img_up'][()]
-val_down = data['img_down'][()]
-val_left = data['img_left'][()]
-val_right = data['img_right'][()]
+val_img = data['img_raw'][()].astype('float32')
+val_label = data['mask'][()].astype('float32')
+val_up = data['img_up'][()].astype('float32')
+val_down = data['img_down'][()].astype('float32')
+val_left = data['img_left'][()].astype('float32')
+val_right = data['img_right'][()].astype('float32')
 data.close()
 
 logging.info('\nData summary:')
@@ -294,18 +332,23 @@ logging.info(' - Validation Labels:')
 logging.info(val_label.shape)
 logging.info(val_label.dtype)
 
+
+if len(train_img) != len(train_up) or len(train_img) != len(train_down):
+    raise AssertionError('Inadequate number of training images')
+if len(val_img) != len(val_up) or len(val_img) != len(val_down):
+    raise AssertionError('Inadequate number of validation images')
+
 """
 Pre process
 """
 for i in range(train_img.shape[0]):
   train_img[i] = standardize_image(train_img[i])
+  train_up[i] = standardize_image(train_up[i])
+  train_down[i] = standardize_image(train_down[i])
 for i in range(val_img.shape[0]):
   val_img[i] = standardize_image(val_img[i])
-
-img_train = train_img.astype('float32')
-mask_train = train_label.astype('float32')
-img_val = val_img.astype('float32')
-mask_val = val_label.astype('float32')
+  val_up[i] = standardize_image(val_up[i])
+  val_down[i] = standardize_image(val_down[i])
 
 # only for softmax
 #mask_train = tf.keras.utils.to_categorical(mask_train, num_classes=2)
@@ -324,7 +367,7 @@ pretrained_weights = None # 'C://..../model_weight.h5'
 Model
 """
 print('\nCreating and compiling model...')
-model = model_structure.Unet()
+model = model_structure.Unet2()
 with open('modelsummary.txt', 'w') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
 #plot_model(model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
@@ -394,19 +437,21 @@ logging.info('Start training...')
 for epoch in range(epochs):
     logging.info('Epoch {}/{}:'.format(str(epoch+1), str(epochs)))
     temp_hist = {}
-    for batch in iterate_minibatches(img_train,
-                                     mask_train,
+    for batch in iterate_minibatches(train_img,
+                                     train_up,
+                                     train_down,
+                                     train_label,
                                      batch_size=batch_size,
                                      augment_batch=True,
                                      expand_dims=True):
-        x, y = batch
+        x1, x2, x3, y = batch
 
         #TEMPORARY HACK (to avoid incomplete batches)
         if y.shape[0] < batch_size:
             step += 1
             continue
 
-        hist = model.train_on_batch(x,y)
+        hist = model.train_on_batch((x1,x2,x3),y)
         if temp_hist == {}:
             for m_i in range(len(model.metrics_names)):
                 temp_hist[model.metrics_names[m_i]] = []
@@ -414,8 +459,8 @@ for epoch in range(epochs):
                     temp_hist[key].append(hist[i])
         
         if (step + 1) % 20 == 0:
-            logging.info(str('step: %d '+name_metric[0]+': %.3f '+name_metric[1]+': %.3f '+name_metric[2]+': %.3f '
-            +name_metric[3]+': %.3f '+name_metric[4]+': %.3f '+name_metric[5]+': %.3f') % 
+            logging.info(str('step: %d - '+name_metric[0]+': %.3f - '+name_metric[1]+': %.3f - '+name_metric[2]+': %.3f - '
+            +name_metric[3]+': %.3f - '+name_metric[4]+': %.3f - '+name_metric[5]+': %.3f') % 
                          (step+1, hist[0], hist[1], hist[2], hist[3], hist[4], hist[5]))
         
         step += 1  #fine batch
@@ -423,13 +468,19 @@ for epoch in range(epochs):
     for key in temp_hist:
         temp_hist[key] = sum(temp_hist[key])/len(temp_hist[key])
 
-    for m_k in range(len(model.metrics_names)):
-        logging.info(str(model.metrics_names[m_k]+': %.3f') % temp_hist[model.metrics_names[m_k]])
+    #print metrics to the end of each epoch
+    logging.info(str('Epoch: %d/%d - '+name_metric[0]+': %.3f - '+name_metric[1]+': %.3f - '+
+                     name_metric[2]+': %.3f - '+name_metric[3]+': %.3f - '+
+                     name_metric[4]+': %.3f - '+name_metric[5]+': %.3f') % 
+                 ((epoch+1), epochs,
+                  temp_hist[model.metrics_names[0]], temp_hist[model.metrics_names[1]],
+                  temp_hist[model.metrics_names[2]], temp_hist[model.metrics_names[3]],
+                  temp_hist[model.metrics_names[4]], temp_hist[model.metrics_names[5]]))
 
     if train_history == {}:
         for m_i in range(len(model.metrics_names)):
             train_history[model.metrics_names[m_i]] = []
-    for key in history:
+    for key in train_history:
         train_history[key].append(temp_hist[key])
 
     #save learning rate history
@@ -442,7 +493,10 @@ for epoch in range(epochs):
 
     #evaluate the model against the validation set
     logging.info('Validation Data Eval:')
-    val_hist = do_eval(img_val, mask_val,
+    val_hist = do_eval(val_img,
+                       val_up,
+                       val_down,
+                       val_label,
                        batch_size=batch_size,
                        augment_batch=False,
                        expand_dims=True)
@@ -458,7 +512,7 @@ for epoch in range(epochs):
         no_improvement_counter = 0
         logging.info(str('val_'+model.metrics_names[1]+' improved from %.3f to %.3f, saving model to weights-improvement') % (best_val_dice, val_hist[1]))
         best_val = val_hist[1]
-        model.save(os.path.join(log_dir, 'model_weight.h5'))
+        model.save_weights(os.path.join(log_dir, 'model_weights.h5'))
     else:
         no_improvement_counter += 1
         logging.info('val_dice_coef did not improve for %d epochs' % no_improvement_counter)
