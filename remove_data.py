@@ -60,9 +60,13 @@ for paz in os.listdir(path):
         dcmPath = os.path.join(path_seg, os.listdir(path_seg)[i])
         data_row_img = pydicom.dcmread(dcmPath)
         img = data_row_img.pixel_array
-        img = crop_or_pad_slice_to_size(img, 340, 340)
-        temp_img = img.copy()
-        if len(np.argwhere(cv2.inRange(temp_img, (250,250,0), (255,255,0)))) < 10:
+        img = crop_or_pad_slice_to_size(img, 310, 310)
+        flag = 1
+        for r in range(0, img.shape[0]):
+            for c in range(0, img.shape[1]):
+                if not img[r,c,0] == img[r,c,1] == img[r,c,2]:
+                    flag = 0
+        if flag == 1:
             LIST.append(os.path.join(path_seg, os.listdir(path_seg)[i]))
             LIST.append(os.path.join(path_raw, os.listdir(path_raw)[i]))
 
