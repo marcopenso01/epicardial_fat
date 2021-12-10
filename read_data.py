@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 """
-Created on Thu Oct 21 16:02:58 2021
+Spyder Editor
 
-@author: Marco Penso
+This is a temporary script file.
 """
 
 import os
@@ -123,12 +122,12 @@ def crop_or_pad_slice_to_size_specific_point(slice, nx, ny, cx, cy):
 if __name__ == '__main__':
 
     # Paths settings
-    path = r'D:/GRASSO/val'
+    path = r'D:/GRASSO/train'
     nx = 160
     ny = 160
     force_overwrite = False
     crop = 240
-    name = 'DELINEATE_CAD_910'
+    name = 'DELINEATE_CAD_959'
     
     output_folder = os.path.join(path,name,'pre_processing')
     if not os.path.exists(output_folder) or force_overwrite:
@@ -182,10 +181,14 @@ if __name__ == '__main__':
         data_row_img = pydicom.dcmread(dcmPath)
         rows = int(data_row_img.Rows)
         cols = int(data_row_img.Columns)
-        pixel_size = [float(data_row_img.PixelSpacing[0] * (crop / nx)),
-                      float(data_row_img.PixelSpacing[1] * (crop / ny)),
+        px_size = data_row_img.PixelSpacing[0]
+        scale_factor = 0.7422 / px_size
+        dim = (int(rows*scale_factor), int(cols*scale_factor))
+        print('scale_factor:', scale_factor, 'dim:', dim)
+        pixel_size = [float(0.7422 * (crop / nx)),
+                      float(0.7422 * (crop / ny)),
                       int(data_row_img.SpacingBetweenSlices)]
-        # print(pixel_size)
+        #print(pixel_size)
 
         # select center image
         print('selec center ROI')
@@ -193,6 +196,8 @@ if __name__ == '__main__':
         Y = []
         data_row_img = pydicom.dcmread(os.path.join(path_seg, os.listdir(path_seg)[120]))
         img = data_row_img.pixel_array
+        if scale_factor != 1.0:
+            img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
         cv2.imshow("image", img.astype('uint8'))
         cv2.namedWindow('image')
         cv2.setMouseCallback("image", click_event)
@@ -203,7 +208,7 @@ if __name__ == '__main__':
         # mask extraction
         for i in range(len(os.listdir(path_seg))):
             
-            if jj!=0 and jj<=26:
+            if jj!=0 and jj<=28:
                 jj += 1
                 continue
             else:
@@ -211,6 +216,8 @@ if __name__ == '__main__':
                 dcmPath = os.path.join(path_seg, os.listdir(path_seg)[i])
                 data_row_img = pydicom.dcmread(dcmPath)
                 img = data_row_img.pixel_array
+                if scale_factor != 1.0:
+                    img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
                 img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                 temp_img = img.copy()
                 
@@ -221,7 +228,8 @@ if __name__ == '__main__':
                         if img[r,c,0]!=0 and img[r,c,0]==img[r,c,1] and img[r,c,0]!=img[r,c,2]:
                             count +=1
                             temp_img[r, c] = 255
-                if count >=10:
+                if count >=80:
+                    print(count)
                     jj += 1
                     mask = imfill(temp_img)
                     mask[mask > 0] = 1
@@ -252,6 +260,8 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[i])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
+                    if scale_factor != 1.0:
+                        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
                     img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
@@ -261,6 +271,8 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[i - 30])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
+                    if scale_factor != 1.0:
+                        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
                     img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
@@ -269,6 +281,8 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[i + 30])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
+                    if scale_factor != 1.0:
+                        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
                     img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
@@ -290,6 +304,8 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[vet[pos_col]])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
+                    if scale_factor != 1.0:
+                        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
                     img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
@@ -304,6 +320,8 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[vet[pos_col]])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
+                    if scale_factor != 1.0:
+                        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
                     img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
