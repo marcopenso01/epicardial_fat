@@ -125,15 +125,14 @@ def crop_or_pad_slice_to_size_specific_point(slice, nx, ny, cx, cy):
 if __name__ == '__main__':
 
     # Paths settings
-    input_folder = r'F:/FAT'
+    path = r'F:/FAT/test'
     nx = 160
     ny = 160
     force_overwrite = True
-    fold = 'test'
-    val_num = 0
+    crop = 240
     
     
-    output_folder = os.path.join(input_folder, 'pre_processing')
+    output_folder = os.path.join(path, 'pre_processing')
     if not os.path.exists(output_folder) or force_overwrite:
         makefolder(output_folder)
     
@@ -141,9 +140,7 @@ if __name__ == '__main__':
 
         print('This configuration of mode has not yet been preprocessed')
         print('Preprocessing now!')
-        
-        path = os.path.join(input_folder, fold)
-    
+            
         # ciclo su pazienti train
         MASK = []
         IMG_SEG = []  #img in uint8 con segmentazione
@@ -157,32 +154,10 @@ if __name__ == '__main__':
         IMG_RIGHT = []
         PAZ = []
         
-        valMASK = []
-        valIMG_SEG = []  #img in uint8 con segmentazione
-        valIMG_RAW = []  #img in float senza segmentazione
-        valROWS = []
-        valCOLS = []
-        valPIXEL_SIZE = []
-        valIMG_UP = []
-        valIMG_DOWN = []
-        valIMG_LEFT = []
-        valIMG_RIGHT = []
-        valPAZ = []
-        
-        count = 0
-        for paz, i in zip(os.listdir(path), range(len(os.listdir(path)))):
+        for paz in os.listdir(path):
             
-            if val_num !=0:
-                if (i+1) % int(len(os.listdir(path)) / val_num) == 0 and len(count)<val_num:
-                    val = True
-                    count += 1
-                    print('VALIDATION: processing paz %s' % paz)
-                else:
-                    val = False
-                    print('TRAIN: processing paz %s' % paz)
-            else:
-                val = False
-                print('TRAIN: processing paz %s' % paz)
+            print('-----------------------------------------------------------')
+            print('processing paz %s' % paz)
             
             paz_path = os.path.join(path, paz)
             
@@ -199,14 +174,20 @@ if __name__ == '__main__':
             if len(os.listdir(path_seg)) != len(os.listdir(path_raw)):
                 raise Exception('number of file in seg %s and row %s is not equal, for patient %s' % (len(os.listdir(path_seg)), len(os.listdir(path_raw)), paz))
             
-            # dicom info                                                                                       
+            for ff, kk in zip(os.listdir(path_seg), os.listdir(path_raw)):
+                if ff != kk:
+                    raise Exception('file name in seg %s and row %s is not equal, for patient %s' % (ff, kk, paz))
+                    
+            # dicom info (crop/nx è il fattore di scala. In questo modo
+            # anche se viene fatto un resize, la dimensione reale in mm del pixel viene mantenuta)                                                  
             dcmPath = os.path.join(path_raw, os.listdir(path_raw)[0])
             data_row_img = pydicom.dcmread(dcmPath)
             rows = int(data_row_img.Rows)
             cols = int(data_row_img.Columns)
-            pixel_size  = [float(data_row_img.PixelSpacing[0]*(240/nx)),
-                           float(data_row_img.PixelSpacing[1]*(240/ny)),
+            pixel_size  = [float(data_row_img.PixelSpacing[0]*(crop/nx)),
+                           float(data_row_img.PixelSpacing[1]*(crop/ny)),
                            int(data_row_img.SpacingBetweenSlices)]
+            #print(pixel_size)
             
             # select center image
             X = []
@@ -217,18 +198,17 @@ if __name__ == '__main__':
             cv2.namedWindow('image')
             cv2.setMouseCallback("image", click_event)
             cv2.waitKey(0)
-            print(X)
-            print(Y)
+            print('center coordinate:', X, Y)
             
             # mask extraction
             for i in range(len(os.listdir(path_seg))):
                 dcmPath = os.path.join(path_seg, os.listdir(path_seg)[i])
                 data_row_img = pydicom.dcmread(dcmPath)
                 img = data_row_img.pixel_array
-                img = crop_or_pad_slice_to_size_specific_point(img, 240, 240, X[0], Y[0])
+                img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                 temp_img = img.copy()
                     
-                if len(np.argwhere(cv2.inRange(temp_img, (250, 250, 0), (255, 255, 0)))) > 10:
+                if len(np.argwhere(cv2.inRange(temp_img, (245, 245, 0), (255, 255, 0)))) > 6:
                     temp_img = np.zeros((img.shape[0],img.shape[1]), dtype=np.uint8)
                     for r in range(0, img.shape[0]):
                         for c in range(0, img.shape[1]):
@@ -250,58 +230,41 @@ if __name__ == '__main__':
                     ax1.imshow(img)
                     ax2 = fig.add_subplot(122)
                     ax2.imshow(mask)
-                    plt.title('img %d' % (i+1));
+                    plt.title('img %d' % (i-1));
                     plt.show()
-                    
-                    if val:
-                        valMASK.append(mask)
-                        valIMG_SEG.append(img)
-                        valROWS.append(rows)
-                        valCOLS.append(cols)
-                        valPIXEL_SIZE.append(pixel_size)
-                        valPAZ.append(paz)
-                    else:
-                        MASK.append(mask)
-                        IMG_SEG.append(img)
-                        ROWS.append(rows)
-                        COLS.append(cols)
-                        PIXEL_SIZE.append(pixel_size)
-                        PAZ.append(paz)
+                
+                    MASK.append(mask)
+                    #IMG_SEG.append(img)
+                    #ROWS.append(rows)
+                    #COLS.append(cols)
+                    PIXEL_SIZE.append(pixel_size)
+                    PAZ.append(paz)
                     
                     # save data raw
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[i])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
-                    img = crop_or_pad_slice_to_size_specific_point(img, 240, 240, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
                     
-                    if val:
-                        valIMG_RAW.append(img)
-                    else:
-                        IMG_RAW.append(img)
+                    IMG_RAW.append(img)
                     
                     #save spatial image
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[i-30])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
-                    img = crop_or_pad_slice_to_size_specific_point(img, 240, 240, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
                     
-                    if val:
-                        valIMG_UP.append(img)
-                    else:
-                        IMG_UP.append(img)
+                    IMG_UP.append(img)
                     
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[i+30])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
-                    img = crop_or_pad_slice_to_size_specific_point(img, 240, 240, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
                     
-                    if val:
-                        valIMG_DOWN.append(img)
-                    else: 
-                        IMG_DOWN.append(img)
+                    IMG_DOWN.append(img)
                     
                     #save temporal image
                     pos_row = (i // 30)+1
@@ -319,13 +282,10 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[vet[pos_col]])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
-                    img = crop_or_pad_slice_to_size_specific_point(img, 240, 240, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
                     
-                    if val:
-                        valIMG_LEFT.append(img)
-                    else:
-                        IMG_LEFT.append(img)
+                    IMG_LEFT.append(img)
                             
                     pos_col = i % 30
                     for _ in range(2):
@@ -336,13 +296,10 @@ if __name__ == '__main__':
                     dcmPath = os.path.join(path_raw, os.listdir(path_raw)[vet[pos_col]])
                     data_row_img = pydicom.dcmread(dcmPath)
                     img = data_row_img.pixel_array
-                    img = crop_or_pad_slice_to_size_specific_point(img, 240, 240, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
                     
-                    if val:
-                        valIMG_RIGHT.append(img)
-                    else:
-                        IMG_RIGHT.append(img)
+                    IMG_RIGHT.append(img)
                     
                     '''
                     target_x=[]
@@ -359,7 +316,7 @@ if __name__ == '__main__':
         hdf5_file.create_dataset('paz', (len(PAZ),), dtype=dt)
         hdf5_file.create_dataset('pixel_size', (len(PIXEL_SIZE),3), dtype=dt)
         hdf5_file.create_dataset('mask', [len(MASK)] + [nx, ny], dtype=np.uint8)
-        hdf5_file.create_dataset('img_seg', [len(IMG_SEG)] + [nx, ny, 3], dtype=np.uint8)
+        #hdf5_file.create_dataset('img_seg', [len(IMG_SEG)] + [nx, ny, 3], dtype=np.uint8)
         hdf5_file.create_dataset('img_raw', [len(IMG_RAW)] + [nx, ny], dtype=np.float32)
         hdf5_file.create_dataset('img_up', [len(IMG_UP)] + [nx, ny], dtype=np.float32)
         hdf5_file.create_dataset('img_down', [len(IMG_DOWN)] + [nx, ny], dtype=np.float32)
@@ -370,7 +327,7 @@ if __name__ == '__main__':
              hdf5_file['paz'][i, ...] = PAZ[i]
              hdf5_file['pixel_size'][i, ...] = PIXEL_SIZE[i]
              hdf5_file['mask'][i, ...] = MASK[i]
-             hdf5_file['img_seg'][i, ...] = IMG_SEG[i]
+             #hdf5_file['img_seg'][i, ...] = IMG_SEG[i]
              hdf5_file['img_raw'][i, ...] = IMG_RAW[i]
              hdf5_file['img_up'][i, ...] = IMG_UP[i]
              hdf5_file['img_down'][i, ...] = IMG_DOWN[i]
@@ -379,35 +336,6 @@ if __name__ == '__main__':
         
         # After loop:
         hdf5_file.close()
-        
-        if val_num !=0:
-            
-            hdf5_file = h5py.File(os.path.join(output_folder, 'val.hdf5'), "w")
-                 
-            dt = h5py.special_dtype(vlen=str)
-            hdf5_file.create_dataset('paz', (len(valPAZ),), dtype=dt)
-            hdf5_file.create_dataset('pixel_size', (len(valPIXEL_SIZE),3), dtype=dt)
-            hdf5_file.create_dataset('mask', [len(valMASK)] + [nx, ny], dtype=np.uint8)
-            hdf5_file.create_dataset('img_seg', [len(valIMG_SEG)] + [nx, ny, 3], dtype=np.uint8)
-            hdf5_file.create_dataset('img_raw', [len(valIMG_RAW)] + [nx, ny], dtype=np.float32)
-            hdf5_file.create_dataset('img_up', [len(valIMG_UP)] + [nx, ny], dtype=np.float32)
-            hdf5_file.create_dataset('img_down', [len(valIMG_DOWN)] + [nx, ny], dtype=np.float32)
-            hdf5_file.create_dataset('img_left', [len(valIMG_LEFT)] + [nx, ny], dtype=np.float32)
-            hdf5_file.create_dataset('img_right', [len(valIMG_RIGHT)] + [nx, ny], dtype=np.float32)
-            
-            for i in range(len(PAZ)):
-                 hdf5_file['paz'][i, ...] = valPAZ[i]
-                 hdf5_file['pixel_size'][i, ...] = valPIXEL_SIZE[i]
-                 hdf5_file['mask'][i, ...] = valMASK[i]
-                 hdf5_file['img_seg'][i, ...] = valIMG_SEG[i]
-                 hdf5_file['img_raw'][i, ...] = valIMG_RAW[i]
-                 hdf5_file['img_up'][i, ...] = valIMG_UP[i]
-                 hdf5_file['img_down'][i, ...] = valIMG_DOWN[i]
-                 hdf5_file['img_left'][i, ...] = valIMG_LEFT[i]
-                 hdf5_file['img_right'][i, ...] = valIMG_RIGHT[i]
-            
-            # After loop:
-            hdf5_file.close()
 
     else:
 
