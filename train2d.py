@@ -458,7 +458,7 @@ for epoch in range(epochs):
     if val_hist[1] > best_val_dice:
         no_improvement_counter = 0
         logging.info(str('val_'+model.metrics_names[1]+' improved from %.3f to %.3f, saving model to weights-improvement') % (best_val_dice, val_hist[1]))
-        best_val = val_hist[1]
+        best_val_dice = val_hist[1]
         #model.save(os.path.join(log_dir, 'model_weights.h5'))
         model.save_weights(os.path.join(log_dir, 'model_weights.h5'))
     else:
