@@ -1,19 +1,18 @@
 """
-Spyder Editor
+Created on Thu Oct 21 16:02:58 2021
 
-This is a temporary script file.
+@author: Marco Penso
 """
 
 import os
 import numpy as np
 import h5py
 import cv2
-import pydicom  # for reading dicom files
+import pydicom # for reading dicom files
 import matplotlib.pyplot as plt
-
+import shutil
 X = []
 Y = []
-
 
 def makefolder(folder):
     '''
@@ -38,29 +37,30 @@ def click_event(event, x, y, flags, param):
 def imfill(img):
     im_floodfill = img.copy()
     h, w = im_floodfill.shape[:2]
-    mask = np.zeros((h + 2, w + 2), np.uint8)
-    cv2.floodFill(im_floodfill, mask, (0, 0), 255);
+    mask = np.zeros((h+2, w+2), np.uint8)
+    cv2.floodFill(im_floodfill, mask, (0,0), 255);
     return img | cv2.bitwise_not(im_floodfill)
 
 
 def crop_or_pad_slice_to_size(slice, nx, ny):
+    
     if len(slice.shape) == 3:
-        stack = [slice[:, :, 0], slice[:, :, 1], slice[:, :, 2]]
+        stack = [slice[:,:,0], slice[:,:,1], slice[:,:,2]]
         RGB = []
     else:
         stack = [slice]
-
+    
     for i in range(len(stack)):
-
+        
         img = stack[i]
-
+            
         x, y = img.shape
-
+        
         x_s = (x - nx) // 2
         y_s = (y - ny) // 2
         x_c = (nx - x) // 2
         y_c = (ny - y) // 2
-
+    
         if x > nx and y > ny:
             slice_cropped = img[x_s:x_s + nx, y_s:y_s + ny]
         else:
@@ -71,22 +71,23 @@ def crop_or_pad_slice_to_size(slice, nx, ny):
                 slice_cropped[:, y_c:y_c + y] = img[x_s:x_s + nx, :]
             else:
                 slice_cropped[x_c:x_c + x, y_c:y_c + y] = img[:, :]
-        if len(stack) > 1:
+        if len(stack)>1:
             RGB.append(slice_cropped)
-
-    if len(stack) > 1:
+    
+    if len(stack)>1:
         return np.dstack((RGB[0], RGB[1], RGB[2]))
     else:
         return slice_cropped
-
-
+    
+    
 def crop_or_pad_slice_to_size_specific_point(slice, nx, ny, cx, cy):
+    
     if len(slice.shape) == 3:
-        stack = [slice[:, :, 0], slice[:, :, 1], slice[:, :, 2]]
+        stack = [slice[:,:,0], slice[:,:,1], slice[:,:,2]]
         RGB = []
     else:
         stack = [slice]
-
+        
     for i in range(len(stack)):
         img = stack[i]
         x, y = img.shape
@@ -94,7 +95,7 @@ def crop_or_pad_slice_to_size_specific_point(slice, nx, ny, cx, cy):
         y2 = (cy + (ny // 2))
         x1 = (cx - (nx // 2))
         x2 = (cx + (nx // 2))
-
+    
         if y1 < 0:
             img = np.append(np.zeros((x, abs(y1))), img, axis=1)
             x, y = img.shape
@@ -108,26 +109,26 @@ def crop_or_pad_slice_to_size_specific_point(slice, nx, ny, cx, cy):
             x, y = img.shape
         if x2 > 512:
             img = np.append(img, np.zeros((x2 - 512, y)), axis=0)
-
+    
         slice_cropped = img[x1:x1 + nx, y1:y1 + ny]
-        if len(stack) > 1:
+        if len(stack)>1:
             RGB.append(slice_cropped)
-
-    if len(stack) > 1:
+        
+    if len(stack)>1:
         return np.dstack((RGB[0], RGB[1], RGB[2]))
     else:
         return slice_cropped
-
+ 
 
 if __name__ == '__main__':
-
+    
     # Paths settings
-    path = r'D:/GRASSO/train'
+    path = r'F:/DELINEATE CAD/Nuova cartella/group1'
     nx = 160
     ny = 160
-    force_overwrite = False
-    crop = 240
-    name = 'DELINEATE_CAD_959'
+    force_overwrite = True
+    crop = 220
+    name = 'DELINEATE_CAD_1022'
     
     output_folder = os.path.join(path,name,'pre_processing')
     if not os.path.exists(output_folder) or force_overwrite:
@@ -179,12 +180,14 @@ if __name__ == '__main__':
         # anche se viene fatto un resize, la dimensione reale in mm del pixel viene mantenuta)
         dcmPath = os.path.join(path_raw, os.listdir(path_raw)[0])
         data_row_img = pydicom.dcmread(dcmPath)
+        if data_row_img.BitsAllocated != 16:
+            print('bit allocated are not 16, for patient %s' % (name))
         rows = int(data_row_img.Rows)
         cols = int(data_row_img.Columns)
         px_size = data_row_img.PixelSpacing[0]
         scale_factor = 0.7422 / px_size
-        dim = (int(rows*scale_factor), int(cols*scale_factor))
-        print('scale_factor:', scale_factor, 'dim:', dim)
+        dim = (round(rows*scale_factor), round(cols*scale_factor))
+        print('scale_factor:', scale_factor, 'dim_init:', (rows,cols), 'res_dim', dim)
         pixel_size = [float(0.7422 * (crop / nx)),
                       float(0.7422 * (crop / ny)),
                       int(data_row_img.SpacingBetweenSlices)]
@@ -195,18 +198,31 @@ if __name__ == '__main__':
         X = []
         Y = []
         data_row_img = pydicom.dcmread(os.path.join(path_seg, os.listdir(path_seg)[120]))
-        img = data_row_img.pixel_array
-        if scale_factor != 1.0:
-            img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-        cv2.imshow("image", img.astype('uint8'))
-        cv2.namedWindow('image')
-        cv2.setMouseCallback("image", click_event)
-        cv2.waitKey(0)
-        print('center coordinate:', X, Y)
+        while True:
+            img = data_row_img.pixel_array
+            if scale_factor != 1.0:
+                img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+                
+            cv2.imshow("image", img.astype('uint8'))
+            cv2.namedWindow('image')
+            cv2.setMouseCallback("image", click_event)
+            k = cv2.waitKey(0)
+            plt.figure()
+            plt.imshow(crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1]))
+            plt.show()
+            # press 'q' to exit
+            if k == ord('q') or k == 27:
+                break
+            else:
+                cv2.destroyAllWindows()          
+        cv2.destroyAllWindows()
+            
+        print('center coordinate:', X[-1], Y[-1])
         
         jj = 0  #to accelerate the loop
         # mask extraction
         for i in range(len(os.listdir(path_seg))):
+            #print(i)
             
             if jj!=0 and jj<=28:
                 jj += 1
@@ -218,18 +234,20 @@ if __name__ == '__main__':
                 img = data_row_img.pixel_array
                 if scale_factor != 1.0:
                     img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-                img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
+                img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1])
                 temp_img = img.copy()
                 
                 count = 0
                 temp_img = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
                 for r in range(0, img.shape[0]):
                     for c in range(0, img.shape[1]):
-                        if img[r,c,0]!=0 and img[r,c,0]==img[r,c,1] and img[r,c,0]!=img[r,c,2]:
+                        #if img[r,c,0]!=0 and img[r,c,0]==img[r,c,1] and img[r,c,0]!=img[r,c,2]:
+                        #if not img[r,c,1] == img[r,c,2] and img[r,c,0]==img[r,c,1]:
+                        if not img[r,c,1] == img[r,c,2]:
                             count +=1
                             temp_img[r, c] = 255
-                if count >=80:
-                    print(count)
+                if count >=30:
+                    print('count', count)
                     jj += 1
                     mask = imfill(temp_img)
                     mask[mask > 0] = 1
@@ -262,7 +280,7 @@ if __name__ == '__main__':
                     img = data_row_img.pixel_array
                     if scale_factor != 1.0:
                         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
                     IMG_RAW.append(img)
@@ -273,7 +291,7 @@ if __name__ == '__main__':
                     img = data_row_img.pixel_array
                     if scale_factor != 1.0:
                         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
                     IMG_UP.append(img)
@@ -283,7 +301,7 @@ if __name__ == '__main__':
                     img = data_row_img.pixel_array
                     if scale_factor != 1.0:
                         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
                     IMG_DOWN.append(img)
@@ -306,7 +324,7 @@ if __name__ == '__main__':
                     img = data_row_img.pixel_array
                     if scale_factor != 1.0:
                         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
                     IMG_LEFT.append(img)
@@ -322,7 +340,7 @@ if __name__ == '__main__':
                     img = data_row_img.pixel_array
                     if scale_factor != 1.0:
                         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[0], Y[0])
+                    img = crop_or_pad_slice_to_size_specific_point(img, crop, crop, X[-1], Y[-1])
                     img = cv2.resize(img, (nx, ny), interpolation=cv2.INTER_AREA)
     
                     IMG_RIGHT.append(img)
