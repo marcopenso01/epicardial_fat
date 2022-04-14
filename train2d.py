@@ -189,7 +189,7 @@ def augmentation_function(images, labels):
     Function for augmentation of minibatches.
     :param images: A numpy array of shape [minibatch, X, Y, nchannels]
     :param labels: A numpy array containing a corresponding label mask
-    :return: A mini batch of the same size but with transformed images and masks. 
+    :return: A mini batch of the same size but with transformed images and masks.
     '''
 
     if images.ndim > 4:
@@ -270,7 +270,7 @@ def augmentation_function(images, labels):
 
 def iterate_minibatches(images, labels, batch_size, augment_batch=False, expand_dims=True):
     '''
-    Function to create mini batches from the dataset of a certain batch size 
+    Function to create mini batches from the dataset of a certain batch size
     :param images: input data shape (N, W, H)
     :param labels: label data
     :param batch_size: batch size (Int)
@@ -302,12 +302,12 @@ def iterate_minibatches(images, labels, batch_size, augment_batch=False, expand_
 
 def do_eval(images, labels, batch_size, augment_batch=False, expand_dims=True):
     '''
-    Function for running the evaluations on the validation sets.  
+    Function for running the evaluations on the validation sets.
     :param images: A numpy array containing the images
-    :param labels: A numpy array containing the corresponding labels 
+    :param labels: A numpy array containing the corresponding labels
     :param batch_size: batch size
     :param augment_batch: should batch be augmented?
-    :param expand_dims: adding a dimension to a tensor? 
+    :param expand_dims: adding a dimension to a tensor?
     :return: Scalar val loss and metrics
     '''
     num_batches = 0
@@ -344,7 +344,7 @@ def print_txt(output_dir, stringa):
 PATH
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 log_root = 'D:\GRASSO\logdir'
-experiment_name = '2D_Unet2'
+experiment_name = 'ConvMixUnet'
 forceoverwrite = True
 
 out_fold = os.path.join(log_root, experiment_name)
@@ -419,14 +419,14 @@ print_txt(out_fold, ['\ncurr_lr: %s\n\n' % curr_lr])
 LOADING MODEL
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 print('\nCreating and compiling model...')
-model = model_structure.Unet(n_filt=48)
+model = model_structure.ConvMixUnet(n_filt=48)
 
 with open(out_file, 'a') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
 # plot_model(model, to_file=os.path.join(log_dir,'model_plot.png'), show_shapes=True, show_layer_names=True)
 
 opt = tf.keras.optimizers.Adam(learning_rate=curr_lr)
-model.compile(optimizer=opt, loss=losses.hybrid_loss(), metrics=[losses.dice_coef])
+model.compile(optimizer=opt, loss=losses.dice_loss(), metrics=[losses.dice_coef])
 print('Model prepared...')
 
 if os.path.exists(os.path.join(out_fold, 'model_weights.h5')):
@@ -518,14 +518,14 @@ for epoch in range(epochs):
 
     # ReduceLROnPlateau
     if no_improvement_counter % 6 == 0 and no_improvement_counter != 0:
-        curr_lr = curr_lr * 0.5
-        if curr_lr < 1e-7:
+        curr_lr = curr_lr * 0.2
+        if curr_lr < 1e-6:
             curr_lr = 1e-4
         K.set_value(model.optimizer.learning_rate, curr_lr)
         logging.info('Current learning rate: %.6f' % curr_lr)
 
     # EarlyStopping
-    if no_improvement_counter > 40:  # Early stop if val loss does not improve after n epochs
+    if no_improvement_counter > 48:  # Early stop if val loss does not improve after n epochs
         logging.info('Early stop at epoch {}.\n'.format(str(epoch + 1)))
         break
 
@@ -596,7 +596,7 @@ print_txt(out_fold, ['\nTesting Images shape: %s' % test_img.dtype])
 
 print('Loading saved weights...')
 model = tf.keras.models.load_model(os.path.join(out_fold, 'model_weights.h5'),
-                                   custom_objects={'loss_function': losses.hybrid_loss(), 'dice_coef': losses.dice_coef})
+                                   custom_objects={'loss_function': losses.dice_loss(), 'dice_coef': losses.dice_coef})
 
 RAW = []
 PRED = []
