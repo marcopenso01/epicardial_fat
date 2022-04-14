@@ -214,7 +214,7 @@ def ConvMixUnet(input_size1=(160, 160, 1), n_filt=32):
     input_model1 = Input(input_size1)
 
     # layer1 2D
-    conv1 = ReLU()(BatchNormalization()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(input_model1)))
+    conv1 = naive_inception_module(input_model1, n_filt)
     conv1 = conv_mixer_block(conv1, filters=n_filt, kernel_size=3)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
     # layer2 2D
@@ -283,6 +283,22 @@ def ConvMixUnet(input_size1=(160, 160, 1), n_filt=32):
     logging.info('Finish building model')
 
     return model
+
+
+def naive_inception_module(layer_in, n_filt=32):
+    conv1 = BatchNormalization()(ReLU()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(layer_in)))
+
+    conv2 = BatchNormalization()(ReLU()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(layer_in)))
+    conv2 = BatchNormalization()(ReLU()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(conv2)))
+
+    conv3 = BatchNormalization()(
+        ReLU()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(layer_in)))
+    conv3 = BatchNormalization()(ReLU()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(conv3)))
+    conv3 = BatchNormalization()(ReLU()(Conv2D(n_filt, (3, 3), padding='same', kernel_initializer='he_normal')(conv3)))
+
+    # concatenate filters, assumes filters/channels last
+    layer_out = Concatenate(axis=-1)([conv1, conv2, conv3])
+    return layer_out
 
 
 def Unet3(input_size1=(160, 160, 1), input_size2=(160, 160, 1),
