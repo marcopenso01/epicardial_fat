@@ -419,14 +419,14 @@ print_txt(out_fold, ['\ncurr_lr: %s\n\n' % curr_lr])
 LOADING MODEL
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 print('\nCreating and compiling model...')
-model = model_structure.ConvMixUnet(n_filt=48)
+model = model_structure.ConvMixUnet(n_filt=64)
 
 with open(out_file, 'a') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
 # plot_model(model, to_file=os.path.join(log_dir,'model_plot.png'), show_shapes=True, show_layer_names=True)
 
 opt = tf.keras.optimizers.Adam(learning_rate=curr_lr)
-model.compile(optimizer=opt, loss=losses.dice_loss(), metrics=[losses.dice_coef])
+model.compile(optimizer=opt, loss=losses.focal_tversky_loss(), metrics=[losses.dice_coef])
 print('Model prepared...')
 
 if os.path.exists(os.path.join(out_fold, 'model_weights.h5')):
@@ -596,7 +596,7 @@ print_txt(out_fold, ['\nTesting Images shape: %s' % test_img.dtype])
 
 print('Loading saved weights...')
 model = tf.keras.models.load_model(os.path.join(out_fold, 'model_weights.h5'),
-                                   custom_objects={'loss_function': losses.dice_loss(), 'dice_coef': losses.dice_coef})
+                                   custom_objects={'loss_function': losses.focal_tversky_loss(), 'dice_coef': losses.dice_coef})
 
 RAW = []
 PRED = []
@@ -631,6 +631,7 @@ for paz in np.unique(test_paz):
     total_time += elapsed_time
     total_volumes += 1
     logging.info('Evaluation of volume took %f secs.' % elapsed_time)
+    print_txt(out_fold, ['\nEvaluation of volume took %f secs.' % elapsed_time])
 
 n_file = len(PRED)
 dt = h5py.special_dtype(vlen=str)
@@ -651,6 +652,7 @@ for i in range(n_file):
 
 out_pred_data.close()
 logging.info('Average time per volume: %f' % (total_time / total_volumes))
+print_txt(out_fold, ['\nAverage time per volume: %f' % (total_time / total_volumes)])
 
 if gt_exists:
     metrics.main(test_path)
