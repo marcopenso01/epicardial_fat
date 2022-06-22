@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from scipy import ndimage
 import shutil
 import time
+import math
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import plot_model
@@ -246,6 +247,11 @@ def augmentation_function(image1, image2, image3, labels):
         else:
             raise ValueError("do_height_shift_range parameter should be >0")
 
+        # ZOOM
+        # Float or [lower, upper].Range for random zoom.
+        # If a float, `[lower, upper] = [1 - zoom_range, 1 + zoom_range]`
+        zx, zy = np.random.uniform(1 - 0.05, 1 + 0.05, 2)
+
         # RANDOM HORIZONTAL FLIP
         flip_horizontal = (np.random.random() < 0.5)
 
@@ -255,6 +261,7 @@ def augmentation_function(image1, image2, image3, labels):
         img1, img2, img3, lbl = apply_affine_transform(img1, img2, img3, lbl,
                                                        rows=rows, cols=cols,
                                                        theta=theta, tx=tx, ty=ty,
+                                                       zx=zx, zy=zy,
                                                        fill_mode='nearest',
                                                        order=1)
 
@@ -364,12 +371,13 @@ def print_txt(output_dir, stringa):
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 PATH
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-log_root = 'D:\GRASSO\logdir'
-experiment_name = 'ConvMixUnet'
+log_root = 'D:\GRASSO\logdir2'
+experiment_name = 'ConvMixUnet2_5D_3'
 forceoverwrite = True
 
 out_fold = os.path.join(log_root, experiment_name)
-
+out_file = os.path.join(out_fold, 'summary_report.txt')
+'''
 if not tf.io.gfile.exists(out_fold) or forceoverwrite:
     try:
         shutil.rmtree(out_fold)
@@ -447,7 +455,7 @@ for i in range(len(val_img)):
 HYPERPARAMETERS
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 batch_size = 4
-epochs = 400
+epochs = 300
 curr_lr = 1e-3
 
 with open(out_file, "a") as text_file:
@@ -460,10 +468,12 @@ print_txt(out_fold, ['\ncurr_lr: %s\n\n' % curr_lr])
 LOADING MODEL
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 print('\nCreating and compiling model...')
-model = model_structure.ConvMixUnet2_5D(n_filt=48)
+model = model_structure.ConvMixUnet2_5D_3(n_filt2D=48, n_fild3D=32)
+plot_model(model, to_file=os.path.join(out_fold, 'model_plot.png'), show_shapes=True, show_layer_names=True)
 
 with open(out_file, 'a') as f:
     model.summary(print_fn=lambda x: f.write(x + '\n'))
+'''
 '''
 class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
   def __init__(self, curr_lr):
@@ -479,6 +489,7 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
   #  }
   #  return config
 opt = tf.keras.optimizers.Adam(learning_rate=MyLRSchedule(curr_lr))
+'''
 '''
 opt = tf.keras.optimizers.Adam(learning_rate=curr_lr)
 model.compile(optimizer=opt, loss=losses.focal_tversky_loss(),
@@ -561,7 +572,7 @@ for epoch in range(epochs):
         train_history[key].append(temp_hist[key])
 
     # save learning rate history
-    lr_hist.append(curr_lr)
+    lr_hist.append(K.get_value(model.optimizer.learning_rate))
 
     # evaluate the model against the validation set
     logging.info('Validation Data Eval:')
@@ -584,24 +595,41 @@ for epoch in range(epochs):
         no_improvement_counter = 0
         print('val_dice improved from %.3f to %.3f, saving model to weights-improvement' % (
             best_val_dice, val_hist[1]))
-        best_val = val_hist[1]
+        best_val_dice = val_hist[1]
         model.save(os.path.join(out_fold, 'model_weights.h5'))
     else:
         no_improvement_counter += 1
         print('val_dice did not improve for %d epochs' % no_improvement_counter)
 
     # ReduceLROnPlateau
-    if no_improvement_counter % 6 == 0 and no_improvement_counter != 0:
-        curr_lr = curr_lr * 0.2
-        if curr_lr < 1e-6:
+
+    if no_improvement_counter % 8 == 0 and no_improvement_counter != 0:
+        curr_lr = curr_lr * 0.4
+        if curr_lr < 5e-7:
             curr_lr = 1e-4
         K.set_value(model.optimizer.learning_rate, curr_lr)
         logging.info('Current learning rate: %.6f' % curr_lr)
-
+'''
+'''
+    if epoch <= 100:
+        curr_lr = 0.001 * math.exp(-0.06 * epoch)
+    if 100 < epoch <= 150:
+        curr_lr = 0.0005 * math.exp(-0.1 * (epoch-100))
+    if epoch > 150:
+        curr_lr = 0.0005 * math.exp(-0.1 * (epoch-150))
+'''
+'''
+    curr_lr = 0.001 * math.exp(-0.03 * epoch)
+    K.set_value(model.optimizer.learning_rate, curr_lr)
+    logging.info('Current learning rate: %.6f' % curr_lr)
+'''
+'''
     # EarlyStopping
-    if no_improvement_counter > 48:  # Early stop if val loss does not improve after n epochs
+
+    if no_improvement_counter > 40:  # Early stop if val loss does not improve after n epochs
         logging.info('Early stop at epoch {}.\n'.format(str(epoch + 1)))
         break
+
 
 print('\nModel correctly trained and saved')
 
@@ -641,7 +669,7 @@ plt.xlabel("Epochs", fontsize=16)
 plt.ylabel("LR", fontsize=16)
 plt.savefig(os.path.join(out_fold, 'LR'), dpi=300)
 plt.close()
-
+'''
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 TESTING AND EVALUATING THE MODEL
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -656,7 +684,7 @@ if not tf.io.gfile.exists(test_path):
 data_file_path = os.path.join(test_path, 'pred.hdf5')
 out_pred_data = h5py.File(data_file_path, "w")
 
-data = h5py.File(os.path.join('D:\GRASSO\data', 'test.hdf5'), 'r')
+data = h5py.File(os.path.join('D:\GRASSO\data', 'test2.hdf5'), 'r')
 test_img = data['img_raw'][()].astype('float32')
 test_up = data['img_up'][()].astype('float32')
 test_down = data['img_down'][()].astype('float32')
