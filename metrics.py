@@ -4,12 +4,15 @@ import re
 
 import h5py
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import pandas as pd
+import cv2
+from skimage import color
+from PIL import Image
 import seaborn as sns
 import scipy.stats as stats
 from skimage import measure
-from scipy.spatial.distance import directed_hausdorff
 import tensorflow as tf
 import binary_metric as bm
 
@@ -142,6 +145,30 @@ def compute_metrics_on_slice(input_fold):
     return df
 
 
+def print_latex_tables(path, file_name, file_out):
+    file = os.path.join(path, file_name)
+    out_file = os.path.join(path, file_out)
+    data = pd.read_pickle(file)
+    dice = data['dice']
+    hd = data['hd']
+    rec = data['recall']
+    prec = data['prec']
+    with open(out_file, "w") as text_file:
+        text_file.write('dice mean:%0.3f (%0.3f)\n' % (np.mean(dice), np.std(dice, ddof=1)))
+        text_file.write('hd mean:%0.3f (%0.3f)\n' % (np.mean(hd), np.std(hd, ddof=1)))
+        text_file.write('rec mean:%0.3f (%0.3f)\n' % (np.mean(rec), np.std(rec, ddof=1)))
+        text_file.write('prec mean:%0.3f (%0.3f)\n' % (np.mean(prec), np.std(prec, ddof=1)))
+        q50, q75, q25 = np.percentile(dice, [50, 75, 25])
+        text_file.write('dice median:%0.3f (%0.3f - %0.3f)\n' % (q50, q25, q75))
+        q50, q75, q25 = np.percentile(hd, [50, 75, 25])
+        text_file.write('hd median:%0.3f (%0.3f - %0.3f)\n' % (q50, q25, q75))
+        q50, q75, q25 = np.percentile(rec, [50, 75, 25])
+        text_file.write('rec median:%0.3f (%0.3f - %0.3f)\n' % (q50, q25, q75))
+        q50, q75, q25 = np.percentile(prec, [50, 75, 25])
+        text_file.write('prec median:%0.3f (%0.3f - %0.3f)\n' % (q50, q25, q75))
+    return 0
+
+
 def main(path_pred):
     print(path_pred)
     if os.path.exists(os.path.join(path_pred, 'pred.hdf5')):
@@ -152,7 +179,48 @@ def main(path_pred):
             df = compute_metrics_on_patient(path_pred)
             df.to_pickle(os.path.join(path_eval, 'df_paz.pkl'))
             df.to_excel(os.path.join(path_eval, 'excel_df_paz.xlsx'))
+            print_latex_tables(path_eval, 'df_paz.pkl', 'paz_tables.txt')
 
             df = compute_metrics_on_slice(path_pred)
             df.to_pickle(os.path.join(path_eval, 'df_slice.pkl'))
             df.to_excel(os.path.join(path_eval, 'excel_df_slice.xlsx'))
+            print_latex_tables(path_eval, 'df_slice.pkl', 'slice_tables.txt')
+
+    print('saving images...')
+    pdf_path = os.path.join(path_eval, 'plt_imgs.pdf')
+    data = h5py.File(os.path.join(path_pred, 'pred.hdf5'), 'r')
+    figs = []
+    for i in range(len(data['img_raw'])):
+        img_raw = cv2.normalize(src=data['img_raw'][i], dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
+                                dtype=cv2.CV_8U)
+        mask = data['mask'][i].astype(np.uint8)
+        pred = data['pred'][i].astype(np.uint8)
+        fig = plt.figure(figsize=(14, 14))
+        ax1 = fig.add_subplot(131)
+        ax1.set_axis_off()
+        ax1.imshow(img_raw, cmap='gray')
+
+        ax2 = fig.add_subplot(132)
+        ax2.set_axis_off()
+        ax2.imshow(
+            color.label2rgb(mask, img_raw, colors=[(255, 0, 0), (0, 255, 0), (255, 255, 0)], alpha=0.0008, bg_label=0,
+                            bg_color=None))
+        ax3 = fig.add_subplot(133)
+        ax3.set_axis_off()
+        ax3.imshow(
+            color.label2rgb(pred, img_raw, colors=[(255, 0, 0), (0, 255, 0), (255, 255, 0)], alpha=0.0008, bg_label=0,
+                            bg_color=None))
+        ax1.title.set_text('Raw_img')
+        ax2.title.set_text('Ground truth')
+        ax3.title.set_text('Automated')
+        txt = str(data['paz'][i] + '_' + str(i))
+        plt.text(0.1, 0.65, txt, transform=fig.transFigure, size=18)
+        figs.append(fig)
+        #plt.show()
+    data.close()
+
+    with PdfPages(pdf_path) as pdf:
+
+        for fig in figs:
+            pdf.savefig(fig)
+            plt.close()
