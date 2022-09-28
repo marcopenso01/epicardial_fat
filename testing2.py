@@ -116,7 +116,7 @@ for paz in os.listdir(input_fold):
     logging.info('------- Analysing paz: %s' % paz)
     logging.info(' --------------------------------------------')
    
-    data = h5py.File(os.path.join(input_fold, paz, 'pre_proc.hdf5'), 'r')
+    data = h5py.File(os.path.join(input_fold, paz, 'pre_processing', 'pre_proc.hdf5'), 'r')
     if n_slice == 0:
         test_img = data['img_raw'][()].astype('float32')
         test_up = data['img_up'][()].astype('float32')
