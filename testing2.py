@@ -90,7 +90,7 @@ PATH
 log_root = 'D:\GRASSO\logdir2'
 experiment_name = 'ConvMixUnet2_5D_3'
 forceoverwrite = True
-n_slice = 5  #5,6,7,0=all
+n_slice = 5  #5,6,7,0=all   numero di slice partendo dalla basale che si vogliono includere nell'analisi
 input_fold = 'G:\DELINEATE CAD\Nuova cartella\group1'
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -102,7 +102,7 @@ print('-' * 50)
 model_path = os.path.join(log_root, experiment_name)
 
 logging.info('------- loading model -----------')
-model = tf.keras.models.load_model(os.path.join(out_fold, 'model_weights.h5'),
+model = tf.keras.models.load_model(os.path.join(model_path, 'model_weights.h5'),
                                    custom_objects={'loss_function': losses.focal_tversky_loss(),
                                                    'dice_coef': losses.dice_coef})
 
