@@ -65,10 +65,10 @@ def normalize_image(image):
 
 
 def compute_metrics_on_slice(img, px_size):
-
     pred_binary = (img == 1) * 1
     areapred = pred_binary.sum() * (float(px_size[0]) * float(px_size[1])) * float(px_size[2]) / 1000.
     return areapred
+
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 PATH
@@ -84,18 +84,10 @@ print('-' * 50)
 print('Testing bed rest...')
 print('-' * 50)
 model_path = os.path.join(log_root, experiment_name)
-test_path = 'G:\BED-REST\Caiani_bed_rest\pre_process'
-out_path = 'G:\BED-REST\Caiani_bed_rest'
-
-out_path = os.path.join(out_path, 'grasso')
-if not tf.io.gfile.exists(out_path):
-    tf.io.gfile.makedirs(out_path)
+test_path = 'G:\BED-REST\patientsESA20221202\patientsESA20221202\pre_process'
 
 for paz in os.listdir(test_path):
     fold_paz = os.path.join(test_path, paz)
-
-    if not tf.io.gfile.exists(os.path.join(out_path, paz)):
-        tf.io.gfile.makedirs(os.path.join(out_path, paz))
 
     data = h5py.File(os.path.join(fold_paz, 'data.hdf5'), 'r')
 
@@ -107,18 +99,18 @@ for paz in os.listdir(test_path):
     test_pred = []
     test_phase = []
     test_slice = []
-    px_dim = data['pixel_size'][0]   #px, py, pz
+    px_dim = data['pixel_size'][0]  # px, py, pz
 
     for k in data.keys():
         if k == 'pixel_size':
             continue
         n_phase = int(k.split('phase')[-1])
         for ii in range(len(data[k])):
-            if ii > 3 and ii < len(data[k]) - 3:
-                #rimuovo prime e ultime fette
+            if ii > 1 and ii < len(data[k]) - 1:
+                # rimuovo prime e ultime fette
                 test_img.append(data[k][ii].astype('float32'))
-                test_up.append(data[k][ii-1].astype('float32'))
-                test_down.append(data[k][ii+1].astype('float32'))
+                test_up.append(data[k][ii - 1].astype('float32'))
+                test_down.append(data[k][ii + 1].astype('float32'))
                 test_phase.append(n_phase)
                 test_paz.append(paz)
                 test_slice.append(ii)
@@ -152,14 +144,36 @@ for paz in os.listdir(test_path):
         test_pred.append(mask_out)
         test_grasso.append(compute_metrics_on_slice(mask_out, px_dim))
 
-    #save data in excel
+    # save data in excel
+    print('saving excel file...')
     df = pd.DataFrame({'paz': test_paz, 'phase': test_phase,
                        'vol_fat': test_grasso, 'n_slice': test_slice})
-    df.to_excel(os.path.join(out_path, paz, 'excel_df_slice.xlsx'))
+    df.to_excel(os.path.join(test_path, paz, 'excel_df_slice.xlsx'))
 
-    #save img pred
+    # save data
+    print('saving pred...')
+    hdf5_file = h5py.File(os.path.join(test_path, paz, 'output.hdf5'), "w")
+    dt = h5py.special_dtype(vlen=str)
+    hdf5_file.create_dataset('paz', (len(test_paz),), dtype=dt)
+    hdf5_file.create_dataset('phase', (len(test_phase),), dtype=dt)
+    hdf5_file.create_dataset('n_slice', (len(test_slice),), dtype=np.int)
+    hdf5_file.create_dataset('pixel_size', (1, 3), dtype=dt)
+    hdf5_file.create_dataset('img_raw', [len(test_img)] + [img.shape[0], img.shape[1]], dtype=np.float32)
+    hdf5_file.create_dataset('pred', [len(test_pred)] + [img.shape[0], img.shape[1]], dtype=np.float32)
+
+    for i in range(len(test_img)):
+        hdf5_file['paz'][i, ...] = test_paz[i]
+        hdf5_file['phase'][i, ...] = test_phase[i]
+        hdf5_file['img_raw'][i, ...] = test_img[i]
+        hdf5_file['pred'][i, ...] = test_pred[i]
+        hdf5_file['n_slice'][i, ...] = test_slice[i]
+    hdf5_file['pixel_size'][...] = px_dim
+    # After loop:
+    hdf5_file.close()
+
+    # save img pred
     print('saving images...')
-    pdf_path = os.path.join(out_path, paz, 'plt_imgs.pdf')
+    pdf_path = os.path.join(test_path, paz, 'plt_imgs.pdf')
     figs = []
     for i in range(len(test_img)):
         img_raw = cv2.normalize(src=test_img[i], dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
