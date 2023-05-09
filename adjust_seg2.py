@@ -61,24 +61,25 @@ def imfill(img, dim):
 
 
 # path
-input_path = r'F:/BED-REST/patientsESA20221202/patientsESA20221202/pre_process/paz10'
-phase = 17
+input_path = r'G:\GRASSO\data\Nuova cartella\grasso\derivate40.hdf5'
+output_path = r'G:\GRASSO\data\Nuova cartella\grasso\derivate40_post.hdf5'
+groud_truth = True
 # read data
-data = h5py.File(os.path.join(input_path, 'pred.hdf5'), 'r')
+data = h5py.File(input_path, 'r')
 
 MASK = []
 RAW = []
+PRED = []
+PAZ = []
+PIXEL = []
 
+dim=160
 for i in range(len(data['img_raw'])):
-    
-    if data['phase'][i] == str(phase):
-        
-    
         print('-------------------')
+        print(data['paz'][i])
         print('%d/%d' % (i+1, len(data['img_raw'])))
         img_raw = cv2.normalize(src=data['img_raw'][i], dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                 dtype=cv2.CV_8U)
-        dim = img_raw.shape[0]
         pred = data['pred'][i].astype(np.uint8)
         fig = plt.figure(figsize=(14, 14))
         ax1 = fig.add_subplot(121)
@@ -93,11 +94,12 @@ for i in range(len(data['img_raw'])):
         ax2.title.set_text('Automated')
         plt.show()
         flag=True
+        
         while flag:
-            print('1: add seg; 2: canc seg; 3: remove image; 4: ok, 5: remove seg')
+            print('1: add seg; 2: canc seg; 3: remove image; 4: ok)
             c = input("Enter a command: ")
             print(c)
-            if c == '1' or c == '2' or c == '3' or c == '4' or c == '5':
+            if c == '1' or c == '2' or c == '3' or c == '4':
                 flag=False
                
         if c == '2':
@@ -148,13 +150,11 @@ for i in range(len(data['img_raw'])):
         
         if c == '4':
             print(' --- ok ---')
-            MASK.append(data['pred'][i].astype(np.uint8))
+            PRED.append(data['pred'][i].astype(np.uint8))
             RAW.append(data['img_raw'][i])
-            
-        if c == '5':
-            print(' --- remove seg ---')
-            RAW.append(data['img_raw'][i])
-            MASK.append(np.zeros((dim,dim), dtype=np.uint8))
+            PAZ.append(data['paz'][i])
+            PIXEL.append(data['pixel_size'][i])
+            MASK.append(data['mask'][i].astype(np.uint8))
             
         if c == '1':
             print(' --- add seg ---')
@@ -206,8 +206,11 @@ for i in range(len(data['img_raw'])):
                 
                 if c=='0':
                     print('--- esc ---')
-                    RAW.append(data['img_raw'][i])
                     MASK.append(mask)
+                    PRED.append(data['pred'][i].astype(np.uint8))
+                    RAW.append(data['img_raw'][i])
+                    PAZ.append(data['paz'][i])
+                    PIXEL.append(data['pixel_size'][i])                  
                     break
                 
                 if c=='1':
@@ -297,17 +300,19 @@ for i in range(len(data['img_raw'])):
 pixel_size = data['pixel_size'][0]
 data.close()
 
-hdf5_file = h5py.File(os.path.join(input_path, 'post_proc.hdf5'), "w")
+hdf5_file = h5py.File(output_path, "w")
 hdf5_file.create_dataset('mask', [len(MASK)] + [dim, dim], dtype=np.uint8)
 hdf5_file.create_dataset('img_raw', [len(RAW)] + [dim, dim], dtype=np.float32)
+hdf5_file.create_dataset('pred', [len(PRED)] + [dim, dim], dtype=np.uint8)
 dt = h5py.special_dtype(vlen=str)
-hdf5_file.create_dataset('pixel_size', (1, 3), dtype=dt)
-hdf5_file.create_dataset('phase', (1, 1), dtype=dt)
+hdf5_file.create_dataset('paz', (len(PAZ),), dtype=dt)
+hdf5_file.create_dataset('pixel_size', (len(PIXEL), 3), dtype=np.float32)
 
-for i in range(len(MASK)):
+for i in range(len(RAW)):
     hdf5_file['mask'][i, ...] = MASK[i]
+    hdf5_file['pred'][i, ...] = PRED[i]
     hdf5_file['img_raw'][i, ...] = RAW[i]
-hdf5_file['pixel_size'][...] = pixel_size
-hdf5_file['phase'][...] = phase
+    hdf5_file['paz'][i, ...] = PAZ[i]
+    hdf5_file['pixel_size'][i, ...] = PIXEL[i]
 
 hdf5_file.close()
