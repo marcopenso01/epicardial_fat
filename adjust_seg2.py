@@ -154,7 +154,10 @@ for i in range(len(data['img_raw'])):
             RAW.append(data['img_raw'][i])
             PAZ.append(data['paz'][i])
             PIXEL.append(data['pixel_size'][i])
-            MASK.append(data['mask'][i].astype(np.uint8))
+            if groud_truth:
+                MASK.append(data['mask'][i].astype(np.uint8))
+            else:
+                MASK.append(data['pred'][i].astype(np.uint8))
             
         if c == '1':
             print(' --- add seg ---')
