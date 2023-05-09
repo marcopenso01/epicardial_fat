@@ -96,7 +96,7 @@ for i in range(len(data['img_raw'])):
         flag=True
         
         while flag:
-            print('1: add seg; 2: canc seg; 3: remove image; 4: ok)
+            print('1: add seg; 2: canc seg; 3: remove image; 4: ok')
             c = input("Enter a command: ")
             print(c)
             if c == '1' or c == '2' or c == '3' or c == '4':
